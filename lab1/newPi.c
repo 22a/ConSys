@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
 			pi+=((double)parity)*(4.0/(double)i);
 			parity = parity==1?-1:1;
 		}
-		printf("pi = %f\n", pi);
+		//printf("pi = %f\n", pi);
 	}
 	else
 	{
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 				return 2;
 			}
 		}
-		printf("pi = %f\n", pi);
+		//printf("pi = %f\n", pi);
 	}
 
 	// end = clock();
