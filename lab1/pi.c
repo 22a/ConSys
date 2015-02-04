@@ -64,11 +64,11 @@ int main(int argc, char* argv[])
 	if(numThreads==1)
 	{
 		int i;
-		int parity = -1;
+		double parity = -1.0;
 		pi = 4.0;
 		for( i = 3; i < iter; i+=2)
 		{
-			pi+=((double)parity)*(4.0/(double)i);
+			pi+=(parity)*(4.0/(double)i);
 			parity = parity==1?-1:1;
 		}
 	}
