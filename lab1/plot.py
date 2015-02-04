@@ -1,15 +1,13 @@
+import os, re
 import matplotlib.pyplot as pyplot
-import os
-import re
-from subprocess import Popen, PIPE, STDOUT
 import multiprocessing as mp
-import math
+from subprocess import Popen, PIPE, STDOUT
 
 x = []
 y = []
 
 #compile subprocess code
-cmd = "gcc -pthread -o pi newPi.c"
+cmd = "gcc -pthread -o pi pi.c"
 p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
 p.wait() #wait for compiling to complete
 
@@ -30,6 +28,5 @@ pyplot.plot(x,y)
 pyplot.ylabel('time (sec)')
 pyplot.xlabel('threads used')
 pyplot.axis([1, max_threads - 1, 0, max(y) + min(y)], 'o')
-pyplot.axvline(mp.cpu_count(), color='r')
 pyplot.title('A plot of time vs threads used to calculate pi')
 pyplot.show()
