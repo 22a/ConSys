@@ -6,6 +6,10 @@
 #define BUFFER_SIZE 2048
 #define QUEUE_SIZE 50
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t bufferFullStatus = PTHREAD_COND_INITIALIZER;
+pthread_cond_t bufferEmptyStatus = PTHREAD_COND_INITIALIZER;
+
 int numConsumers;
 int totalWorkUnits;
 
@@ -45,23 +49,29 @@ void* consume(void* passedWQptr)
 	int numToConsume = totalWorkUnits;
 	while(numConsumed <= numToConsume)		//produce this many work units
 	{
+		pthread_mutex_lock(&mutex);
 		if(wQ->size > 0)
 		{
-			//ask for mutex, make copy of payload
 			wQ->size--;
 			char* copy = malloc(sizeof(char) * BUFFER_SIZE);
 			int i;
 			for(i = 0; i < BUFFER_SIZE; i++)
 			{
 				copy[i] = wQ->workUnits[wQ->size]->data[i];
-			}			
+			}
 			//release mutex, notify condition variable?
+			pthread_mutex_unlock(&mutex);
+			pthread_cond_broadcast(&bufferFullStatus);
 
 			//start consuming unit
+			numConsumed++;
 		}
 		else
 		{
+			//unlock mutex
+			pthread_mutex_unlock(&mutex);		//may be unnecessary
 			//sleep and wait to be woken up
+			pthread_cond_wait(&bufferEmptyStatus, &mutex);
 		}
 	}
 }
@@ -73,18 +83,28 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 	int numToProduce = totalWorkUnits;
 	while(numProduced <= numToProduce)		//produce this many work units
 	{
+		pthread_mutex_lock(&mutex);
 		if(wQ->size < wQ->maxSize)
 		{
+			fprintf(stderr, "Added to \n");
+			pthread_mutex_unlock(&mutex);
 			//procuce something
 			char* yolo = "yolo";
-			//add to queue (mutex)
+			//timer();
+			//add to queue
+			pthread_mutex_lock(&mutex);
 			wQ->workUnits[wQ->size] = newWorkUnit(yolo);
 			wQ->size++;
 			//release mutex, notify condition variable?
+			pthread_mutex_unlock(&mutex);
+			pthread_cond_broadcast(&bufferEmptyStatus);
 		}
 		else
 		{
+			//unlock mutex
+			pthread_mutex_unlock(&mutex);		//may be unnecessary
 			//sleep and wait to be woken up
+			pthread_cond_wait(&bufferEmptyStatus, &mutex);
 		}
 	}
 }
@@ -112,9 +132,15 @@ int main(int argc, char* argv[])
 	//make work queue
 	struct workQueue* workQ = newWorkQueue(QUEUE_SIZE);
 
-	//initalise producer thread
+	//initalise producer thread 	//may add multiple producers later...
 	pthread_t producer;
-	pthread_create(&producer, NULL, produce, workQ);
+	if(pthread_create(&producer, NULL, produce, workQ))
+	{
+		fprintf(stderr, "Error creating producer\n");
+		return 1;
+	}
+	fprintf(stderr, "Started Procuder Thread #%i!\n", 0);
+
 
 	//pthread instance variables for consumers
 	pthread_t consumers[numConsumers];
@@ -123,9 +149,17 @@ int main(int argc, char* argv[])
 	{
 		if(pthread_create(&consumers[i], NULL, consume, workQ))
 		{
-			fprintf(stderr, "Error creating thread #%i\n", i);
+			fprintf(stderr, "Error creating consumer #%i\n", i);
 			return 1;
 		}
+		fprintf(stderr, "Started Consumer Thread #%i!\n", i);
+	}
+
+	//wait for producer to join
+	if(pthread_join(consumers[i], NULL))
+	{
+		fprintf(stderr, "Error joining producer #%i\n", 0);
+		return 2;
 	}
 
 	//waiting for consumers to join
@@ -133,7 +167,7 @@ int main(int argc, char* argv[])
 	{
 		if(pthread_join(consumers[i], NULL))
 		{
-			fprintf(stderr, "Error joining thread #%i\n", i);
+			fprintf(stderr, "Error joining consumer thread #%i\n", i);
 			return 2;
 		}
 	}
