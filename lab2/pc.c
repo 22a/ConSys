@@ -4,7 +4,7 @@
 
 #define UNITS_PER_CONSUMER 100
 #define BUFFER_SIZE 2048
-#define QUEUE_SIZE 50
+#define QUEUE_SIZE 100
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t bufferFullStatus = PTHREAD_COND_INITIALIZER;
@@ -41,6 +41,15 @@ struct workQueue* newWorkQueue(int maxSize)
 	return newWQ;
 }
 
+void timer(int length)
+{
+	int i = length;
+	while(i > 0)
+	{
+		i--;
+	}
+	return;
+}
 
 void* consume(void* passedWQptr)
 {
@@ -49,9 +58,10 @@ void* consume(void* passedWQptr)
 	int numToConsume = totalWorkUnits;
 	while(numConsumed <= numToConsume)		//produce this many work units
 	{
-		pthread_mutex_lock(&mutex);
+		pthread_cond_wait(&bufferEmptyStatus, &mutex);
 		if(wQ->size > 0)
 		{
+			fprintf(stderr, "I'm STARTING to CONSUME\n");
 			wQ->size--;
 			char* copy = malloc(sizeof(char) * BUFFER_SIZE);
 			int i;
@@ -60,18 +70,11 @@ void* consume(void* passedWQptr)
 				copy[i] = wQ->workUnits[wQ->size]->data[i];
 			}
 			//release mutex, notify condition variable?
-			pthread_mutex_unlock(&mutex);
-			pthread_cond_broadcast(&bufferFullStatus);
+			pthread_cond_signal(&bufferFullStatus);			//let producer know the buffer isn't full
 
 			//start consuming unit
 			numConsumed++;
-		}
-		else
-		{
-			//unlock mutex
-			pthread_mutex_unlock(&mutex);		//may be unnecessary
-			//sleep and wait to be woken up
-			pthread_cond_wait(&bufferEmptyStatus, &mutex);
+			timer(20000);
 		}
 	}
 }
@@ -83,30 +86,24 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 	int numToProduce = totalWorkUnits;
 	while(numProduced <= numToProduce)		//produce this many work units
 	{
-		pthread_mutex_lock(&mutex);
+		fprintf(stderr, "numProduced = %i\n", numProduced);
+		//procuce something, keep it locally
+		timer(100000000);
+		char* yolo = "yolo";
+		//
+		pthread_cond_wait(&bufferFullStatus, &mutex);	//wait until the queue has empty slots
 		if(wQ->size < wQ->maxSize)
 		{
-			fprintf(stderr, "Added to \n");
-			pthread_mutex_unlock(&mutex);
-			//procuce something
-			char* yolo = "yolo";
-			//timer();
-			//add to queue
-			pthread_mutex_lock(&mutex);
+			//add stored unit to queue	
+			fprintf(stderr, "Added unit number %i to the queue!\n", numProduced);
 			wQ->workUnits[wQ->size] = newWorkUnit(yolo);
 			wQ->size++;
-			//release mutex, notify condition variable?
-			pthread_mutex_unlock(&mutex);
-			pthread_cond_broadcast(&bufferEmptyStatus);
-		}
-		else
-		{
-			//unlock mutex
-			pthread_mutex_unlock(&mutex);		//may be unnecessary
-			//sleep and wait to be woken up
-			pthread_cond_wait(&bufferEmptyStatus, &mutex);
+			numProduced++;
+			//release mutex, notify condition variable
+			pthread_cond_broadcast(&bufferEmptyStatus);			//let consumers know the buffer isn't empty
 		}
 	}
+	return NULL;
 }
 
 int main(int argc, char* argv[])
@@ -122,16 +119,18 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "You're going to need at least one consumers.\n");
 		exit(1);
 	}
-
 	totalWorkUnits = numConsumers * UNITS_PER_CONSUMER;
 	if(totalWorkUnits<100)
 	{
 		fprintf(stderr, "Something went wrong calculating how many work units to make. Please contact your system administrator.\n");
 		exit(1);
 	}
+
+
+
+	fprintf(stderr, "Starting process:\nNumber of Consumers = %i\nTotal Work Units = %i\nUnits Per Consumer = %i\n\n", numConsumers, totalWorkUnits, UNITS_PER_CONSUMER);
 	//make work queue
 	struct workQueue* workQ = newWorkQueue(QUEUE_SIZE);
-
 	//initalise producer thread 	//may add multiple producers later...
 	pthread_t producer;
 	if(pthread_create(&producer, NULL, produce, workQ))
@@ -156,7 +155,7 @@ int main(int argc, char* argv[])
 	}
 
 	//wait for producer to join
-	if(pthread_join(consumers[i], NULL))
+	if(pthread_join(producer, NULL))
 	{
 		fprintf(stderr, "Error joining producer #%i\n", 0);
 		return 2;
