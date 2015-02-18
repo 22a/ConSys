@@ -59,9 +59,8 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 	while(numProduced <= numToProduce)		//produce this many work units
 	{
 		//procuce something, keep it locally
-		timer(100000);
+		timer(1000000);
 		char* yolo = "yolo";
-
 		pthread_mutex_lock(&mutex);
 		if(wQ->size < wQ->maxSize)
 		{
@@ -76,10 +75,10 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 		}
 		else
 		{
-			pthread_cond_broadcast(&bufferEmptyStatus);
-			fprintf(stderr, "producer waiting for queue to not be full\n");
+			fprintf(stderr, "~~~~ QUEUE IS FULL, PRODUCER WAITING ~~~~\n");
+			pthread_mutex_unlock(&mutex);
 			pthread_cond_wait(&bufferFullStatus, &mutex);	//wait until the queue has empty slots
-			fprintf(stderr, "producer finished waiting\n");
+			fprintf(stderr, "~~~~ QUEUE NO LONGER FULL, PRODUCER RESUMING ~~~~\n");
 		}
 
 	}
@@ -91,9 +90,10 @@ void* consume(void* passedWQptr)
 {
 	struct workQueue* wQ = (struct workQueue*)passedWQptr;	//cast from void* to wQ*
 	int numConsumed = 0;
-	int numToConsume = totalWorkUnits;
+	int numToConsume = totalWorkUnits/numConsumers;
 	while(numConsumed <= numToConsume)		//produce this many work units
 	{
+		fprintf(stderr, "consumed/toConsume: %i/%i\n", numConsumed, numToConsume);
 		pthread_cond_wait(&bufferEmptyStatus, &mutex);
 		if(wQ->size > 0)
 		{
@@ -116,9 +116,10 @@ void* consume(void* passedWQptr)
 		}
 		else
 		{
-			fprintf(stderr, "consumer starting to wait\n");
+			pthread_mutex_unlock(&mutex);
+			fprintf(stderr, "~~~~ QUEUE IS EMPTY, CONSUMER WAITING ~~~~\n");
 			pthread_cond_wait(&bufferEmptyStatus, &mutex);
-			fprintf(stderr, "consumer finished waiting\n");
+			fprintf(stderr, "~~~~ QUEUE NO LONGER EMPTY, CONSUMER RESUMING ~~~~\n");
 		}
 	}
 	fprintf(stderr, "Exiting consumer thread\n");
