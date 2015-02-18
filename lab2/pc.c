@@ -70,14 +70,17 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 			wQ->size++;
 			numProduced++;
 			//release mutex, notify condition variable
-			pthread_cond_broadcast(&bufferEmptyStatus);			//let consumers know the buffer isn't empty
 			pthread_mutex_unlock(&mutex);
+			pthread_cond_broadcast(&bufferEmptyStatus);			//let consumers know the buffer isn't empty
+			
 		}
 		else
 		{
 			fprintf(stderr, "~~~~ QUEUE IS FULL, PRODUCER WAITING ~~~~\n");
+
 			pthread_mutex_unlock(&mutex);
 			pthread_cond_wait(&bufferFullStatus, &mutex);	//wait until the queue has empty slots
+			
 			fprintf(stderr, "~~~~ QUEUE NO LONGER FULL, PRODUCER RESUMING ~~~~\n");
 		}
 
@@ -91,9 +94,9 @@ void* consume(void* passedWQptr)
 	struct workQueue* wQ = (struct workQueue*)passedWQptr;	//cast from void* to wQ*
 	int numConsumed = 0;
 	int numToConsume = totalWorkUnits/numConsumers;
-	while(numConsumed <= numToConsume)		//produce this many work units
+	while(numConsumed < numToConsume)		//produce this many work units
 	{
-		fprintf(stderr, "consumed/toConsume: %i/%i\n", numConsumed, numToConsume);
+		fprintf(stderr, "\t\t\t\t\t\t\t\tconsumed/toConsume: %i/%i\n", numConsumed, numToConsume);
 		pthread_cond_wait(&bufferEmptyStatus, &mutex);
 		if(wQ->size > 0)
 		{
@@ -108,16 +111,17 @@ void* consume(void* passedWQptr)
 			// }
 
 			//release mutex, notify condition variable?
-			pthread_cond_signal(&bufferFullStatus);			//let producer know the buffer isn't full
 			pthread_mutex_unlock(&mutex);
+			pthread_cond_signal(&bufferFullStatus);			//let producer know the buffer isn't full
+			
 			//start consuming unit
 			numConsumed++;
-			timer(1000000);
+			timer(10000);
 		}
 		else
 		{
-			pthread_mutex_unlock(&mutex);
 			fprintf(stderr, "~~~~ QUEUE IS EMPTY, CONSUMER WAITING ~~~~\n");
+			pthread_mutex_unlock(&mutex);
 			pthread_cond_wait(&bufferEmptyStatus, &mutex);
 			fprintf(stderr, "~~~~ QUEUE NO LONGER EMPTY, CONSUMER RESUMING ~~~~\n");
 		}
@@ -146,8 +150,6 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Something went wrong calculating how many work units to make. Please contact your system administrator.\n");
 		exit(1);
 	}
-
-
 
 	fprintf(stderr, "Starting process:\nNumber of Consumers = %i\nTotal Work Units = %i\nUnits Per Consumer = %i\n\n", numConsumers, totalWorkUnits, UNITS_PER_CONSUMER);
 
@@ -185,6 +187,7 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Error joining producer #%i\n", 0);
 		return 2;
 	}
+	fprintf(stderr, "Producer joined main thread successfully!\n");
 
 	//waiting for consumers to join
 	for(i = 0; i < numConsumers; i++)
@@ -194,6 +197,7 @@ int main(int argc, char* argv[])
 			fprintf(stderr, "Error joining consumer thread #%i\n", i);
 			return 2;
 		}
+		fprintf(stderr, "Consumer #%i joined main thread successfully!\n", i);
 	}
 
 	return 0;
