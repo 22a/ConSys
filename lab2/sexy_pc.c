@@ -10,9 +10,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+// #define ANSI_COLOR_YELLOW  "\x1b[33m"
+// #define ANSI_COLOR_BLUE    "\x1b[34m"
+// #define ANSI_COLOR_MAGENTA "\x1b[35m"
+// #define ANSI_COLOR_CYAN    "\x1b[36m"
+
 #define UNITS_PER_CONSUMER 100
 #define BUFFER_SIZE 2048
 #define QUEUE_SIZE 50
+
+#define sexyPrint(passedWQptr) {								\
+	system("clear");											\
+	int size = passedWQptr->size;								\
+	printf("\n\n\n\tWork Queue Build Up:\n\t");					\
+	int i;														\
+	for(i = 0; i < QUEUE_SIZE; i++)								\
+	{															\
+		if(i!=0 && i%10 == 0)									\
+		{														\
+			printf(ANSI_COLOR_RESET "\n\t");					\
+		}														\
+		if(i < size)											\
+		{														\
+			printf(ANSI_COLOR_RED "[%.2i] ", i);				\
+		}														\
+		else													\
+		{														\
+			printf(ANSI_COLOR_GREEN "[  ] ");					\
+		}														\
+	}															\
+	printf(ANSI_COLOR_RESET "\n");								\
+}
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t bufferFullStatus = PTHREAD_COND_INITIALIZER;
@@ -68,31 +99,27 @@ void* produce(void* passedWQptr)	// params: pointer to work Queue
 	{
 		//procuce something, keep it locally
 		char* data = "Peter_Meehan_2015";
-		timer(4000000);			// this is done outside of mutex lock
+		timer(10000000);			// this is done outside of mutex lock
 
 		pthread_mutex_lock(&mutex);
+		sexyPrint(wQ);
+		printf("numProduced = %i\n", numProduced);
 		if(wQ->size < wQ->maxSize)
 		{
 			//add stored unit to queue
 			wQ->workUnits[wQ->size] = newWorkUnit(data);
 			wQ->size++;
 			numProduced++;
-			fprintf(stderr, "PRODUCER +++ Added unit number %i to the queue at position %i!\n", numProduced, wQ->size-1);
 			//release mutex, notify condition variable
 			pthread_mutex_unlock(&mutex);
 			pthread_cond_broadcast(&bufferEmptyStatus);			//let consumers know the buffer isn't empty
-			
 		}
 		else
 		{
-			fprintf(stderr, "~~~~ QUEUE IS FULL, PRODUCER WAITING ~~~~\n");
 			pthread_mutex_unlock(&mutex);
 			pthread_cond_wait(&bufferFullStatus, &mutex);	//wait until the queue has empty slots
-			fprintf(stderr, "~~~~ QUEUE NO LONGER FULL, PRODUCER RESUMING ~~~~\n");
 		}
-		fprintf(stderr, "\t\t\t\t\t\t\t\tproduced/toProduce: %i/%i\n", numProduced, numToProduce);
 	}
-	fprintf(stderr, "Exiting producer thread\n");
 	return NULL;
 }
 
@@ -107,8 +134,6 @@ void* consume(void* passedWQptr)
 		if(wQ->size > 0)
 		{
 			wQ->size--;
-			fprintf(stderr, "CONSUMER --- Consuming block in place number %i\n", wQ->size);
-
 			// char* copy = malloc(sizeof(char) * BUFFER_SIZE);
 			// int i;
 			// for(i = 0; i < BUFFER_SIZE; i++)				//make copy of data recieved
@@ -117,24 +142,21 @@ void* consume(void* passedWQptr)
 			// }
 
 			//release mutex, notify condition variable?
+			sexyPrint(wQ);
 			pthread_mutex_unlock(&mutex);
 			pthread_cond_broadcast(&bufferFullStatus);			//let producer know the buffer isn't full
 			
 			//start consuming unit
 			numConsumed++;
-			timer(1000000);
+			timer(40000000);
 		}
 		else
 		{
-			fprintf(stderr, "~~~~ QUEUE IS EMPTY, CONSUMER WAITING ~~~~\n");
 			pthread_mutex_unlock(&mutex);
 			pthread_cond_wait(&bufferEmptyStatus, &mutex);
-			fprintf(stderr, "~~~~ QUEUE NO LONGER EMPTY, CONSUMER RESUMING ~~~~\n");
 		}
-		fprintf(stderr, "\t\t\t\t\t\t\t\tconsumed/toConsume: %i/%i\n", numConsumed, numToConsume);
 		pthread_mutex_unlock(&mutex);
 	}
-	fprintf(stderr, "Exiting consumer thread\n");
 	return NULL;
 }
 
@@ -142,7 +164,7 @@ int main(int argc, char* argv[])
 {
 	if(argc != 2)
 	{
-		fprintf(stderr, "Useage:\t./pc <number of consumers>\n");
+		fprintf(stderr, "Useage:\t./sexy_pc <number of consumers>\n");
 		exit(1);
 	}
 	numConsumers = atoi(argv[1]);		//using atoi() here because no user will ever get to pass stupid args to this program
